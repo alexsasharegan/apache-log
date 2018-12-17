@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/alexsasharegan/apache-log/timing"
@@ -29,17 +30,19 @@ type Performance struct {
 
 // ProgramFlags are the command line flags.
 type ProgramFlags struct {
-	verbose    *bool
-	statusCode *int
-	maximum    *int
-	minimum    *int
+	verbose *bool
+	status  *int
+	max     *int
+	min     *int
+	exclude *string
 }
 
-var pflags = ProgramFlags{
-	verbose:    flag.Bool("v", false, "verbose log output"),
-	statusCode: flag.Int("status", 200, "filter by status code"),
-	maximum:    flag.Int("max", 0, "filters entries exceeding max occurrence"),
-	minimum:    flag.Int("min", 0, "filters entries not meeting min occurrence"),
+var program = ProgramFlags{
+	verbose: flag.Bool("v", false, "verbose log output"),
+	status:  flag.Int("status", 200, "filter by status code"),
+	max:     flag.Int("max", 0, "filters entries exceeding max occurrence"),
+	min:     flag.Int("min", 0, "filters entries not meeting min occurrence"),
+	exclude: flag.String("x", "", "exclude URLs starting with string (comma separated for multiple)"),
 }
 
 func main() {
@@ -82,25 +85,39 @@ func main() {
 	}()
 
 	perf.Sorting.Start()
-	statusCode := *pflags.statusCode
+	statusCode := *program.status
+	checkExclude := len(*program.exclude) > 0
+	exclude := strings.Split(*program.exclude, ",")
+
 	for entries := range logx {
+	ENTRIES_LOOP:
 		for _, aLog := range entries {
-			if aLog.StatusCode == statusCode {
-				byStatus[aLog.Request.URI]++
+			if aLog.StatusCode != statusCode {
+				continue
 			}
+
+			if checkExclude {
+				for _, x := range exclude {
+					if strings.HasPrefix(aLog.Request.URI, x) {
+						continue ENTRIES_LOOP
+					}
+				}
+			}
+
+			byStatus[aLog.Request.URI]++
 		}
 	}
 	perf.Sorting.Stop()
 
 	var buf bytes.Buffer
-	for _, pair := range filterSort(byStatus, *pflags.minimum, *pflags.maximum) {
+	for _, pair := range filterSort(byStatus, *program.min, *program.max) {
 		buf.WriteString(fmt.Sprintf("%d: %s\n", pair.Value, pair.Key))
 	}
 
 	buf.WriteTo(os.Stdout)
 
 	perf.Execution.Stop()
-	if *pflags.verbose {
+	if *program.verbose {
 		stderr.Println("Parsing:", perf.Parsing.ElapsedString())
 		stderr.Println("Sorting:", perf.Sorting.ElapsedString())
 		stderr.Println("Total  :", perf.Execution.ElapsedString())
