@@ -1,6 +1,13 @@
 # apache-log
 
-An apache log parser for analyzing log files.
+An apache log parser for analyzing log files. Currently tailored to the log
+format:
+
+```apache
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\""
+```
+
+## Usage
 
 ```sh
 Apache Log Utils
