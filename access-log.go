@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -33,6 +34,11 @@ type AccessLog struct {
 	UserAgent string
 }
 
+// AccessLogList adds methods to a slice of AccessLog
+type AccessLogList struct {
+	Logs []AccessLog
+}
+
 // Request is the log's parsed request line
 type Request struct {
 	Method  string
@@ -53,17 +59,17 @@ func (aLog *AccessLog) Digest(input []byte) error {
 		switch state {
 		case 0: // %h
 			i, b := extractUntil(input, ' ')
-			aLog.RemoteHostname = string(b)
+			aLog.RemoteHostname = string(transformNilLogItem(b))
 			input = input[i:]
 
 		case 1: // %l
 			i, b := extractUntil(input, ' ')
-			aLog.RemoteLogname = string(b)
+			aLog.RemoteLogname = string(transformNilLogItem(b))
 			input = input[i:]
 
 		case 2: // %u
 			i, b := extractUntil(input, ' ')
-			aLog.RemoteUser = string(b)
+			aLog.RemoteUser = string(transformNilLogItem(b))
 			input = input[i:]
 
 		case 3: // %t
@@ -71,7 +77,7 @@ func (aLog *AccessLog) Digest(input []byte) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to parse time")
 			}
-			aLog.Time = string(b)
+			aLog.Time = string(transformNilLogItem(b))
 			input = input[i:]
 
 		case 4: // "%r"
@@ -190,4 +196,35 @@ func extractWrappedUntil(input []byte, left, right, delimiter byte) (int, []byte
 	}
 
 	return i + 2, input[1:i], nil
+}
+
+func transformNilLogItem(b []byte) []byte {
+	if bytes.Equal(b, []byte{'-'}) {
+		return nil
+	}
+
+	return b
+}
+
+// KVPair is a key value pair
+type KVPair struct {
+	Key   string
+	Value int
+}
+
+func filterSort(countMap map[string]int, min, max int) []KVPair {
+	pairs := make([]KVPair, 0, len(countMap))
+
+	for k, v := range countMap {
+		if v < min || (max > 0 && v > max) {
+			continue
+		}
+		pairs = append(pairs, KVPair{k, v})
+	}
+
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].Value > pairs[j].Value
+	})
+
+	return pairs
 }

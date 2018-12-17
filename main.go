@@ -5,12 +5,11 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/alexsasharegan/apache-log/timing"
 	"log"
 	"os"
-	"sort"
 	"sync"
 
+	"github.com/alexsasharegan/apache-log/timing"
 	"github.com/pkg/errors"
 )
 
@@ -28,7 +27,20 @@ type Performance struct {
 	Sorting   timing.Timing
 }
 
-var verbose = flag.Bool("v", false, "verbose log output")
+// ProgramFlags are the command line flags.
+type ProgramFlags struct {
+	verbose    *bool
+	statusCode *int
+	maximum    *int
+	minimum    *int
+}
+
+var pflags = ProgramFlags{
+	verbose:    flag.Bool("v", false, "verbose log output"),
+	statusCode: flag.Int("status", 200, "filter by status code"),
+	maximum:    flag.Int("max", 0, "filters entries by a maximum occurrence"),
+	minimum:    flag.Int("min", 0, "filters entries by a minimum occurrence"),
+}
 
 func main() {
 	var perf Performance
@@ -45,7 +57,7 @@ func main() {
 	}
 
 	logx := make(chan []AccessLog)
-	notFound := make(map[string]int)
+	byStatus := make(map[string]int)
 
 	var wg sync.WaitGroup
 	wg.Add(len(args))
@@ -70,24 +82,25 @@ func main() {
 	}()
 
 	perf.Sorting.Start()
+	statusCode := *pflags.statusCode
 	for entries := range logx {
 		for _, aLog := range entries {
-			if aLog.StatusCode == 404 {
-				notFound[aLog.Request.URI]++
+			if aLog.StatusCode == statusCode {
+				byStatus[aLog.Request.URI]++
 			}
 		}
 	}
 	perf.Sorting.Stop()
 
 	var buf bytes.Buffer
-	for _, pair := range rankByCount(notFound, 10) {
+	for _, pair := range filterSort(byStatus, *pflags.minimum, *pflags.maximum) {
 		buf.WriteString(fmt.Sprintf("%d: %s\n", pair.Value, pair.Key))
 	}
 
 	buf.WriteTo(os.Stdout)
 
 	perf.Execution.Stop()
-	if *verbose {
+	if *pflags.verbose {
 		stderr.Println("Parsing:", perf.Parsing.ElapsedString())
 		stderr.Println("Sorting:", perf.Sorting.ElapsedString())
 		stderr.Println("Total  :", perf.Execution.ElapsedString())
@@ -121,34 +134,4 @@ func parseFile(name string) ([]AccessLog, error) {
 	}
 
 	return entries, scanner.Err()
-}
-
-// KVPair is a key value pair
-type KVPair struct {
-	Key   string
-	Value int
-}
-
-// KVPairList implements the sort interface
-type KVPairList []KVPair
-
-func (p KVPairList) Len() int           { return len(p) }
-func (p KVPairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
-func (p KVPairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-func rankByCount(countMap map[string]int, threshold int) []KVPair {
-	pairs := make([]KVPair, 0, len(countMap))
-
-	for k, v := range countMap {
-		if v < threshold {
-			continue
-		}
-		pairs = append(pairs, KVPair{k, v})
-	}
-
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].Value > pairs[j].Value
-	})
-
-	return pairs
 }
