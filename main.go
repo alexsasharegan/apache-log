@@ -38,8 +38,8 @@ type ProgramFlags struct {
 var pflags = ProgramFlags{
 	verbose:    flag.Bool("v", false, "verbose log output"),
 	statusCode: flag.Int("status", 200, "filter by status code"),
-	maximum:    flag.Int("max", 0, "filters entries by a maximum occurrence"),
-	minimum:    flag.Int("min", 0, "filters entries by a minimum occurrence"),
+	maximum:    flag.Int("max", 0, "filters entries exceeding max occurrence"),
+	minimum:    flag.Int("min", 0, "filters entries not meeting min occurrence"),
 }
 
 func main() {

@@ -19,9 +19,9 @@ Apache Log Utils
 
 Usage of apache-log:
   -max int
-        filters entries by a maximum occurrence
+        filters entries exceeding max occurrence
   -min int
-        filters entries by a minimum occurrence
+        filters entries not meeting min occurrence
   -status int
         filter by status code (default 200)
   -v    verbose log output
