@@ -7,6 +7,9 @@ format:
 LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\""
 ```
 
+For more info on apache log format, see
+[apache log documentation](http://httpd.apache.org/docs/current/mod/mod_log_config.html)
+
 ## Usage
 
 ```sh
