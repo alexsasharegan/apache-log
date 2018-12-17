@@ -14,8 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var usage = `
-Apache Log Utils
+var usage = `Apache Log Utils
 
     apache-log [flags] ...[input]
 
