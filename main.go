@@ -16,7 +16,7 @@ import (
 var usage = `
 Apache Log Utils
 
-    apache-log [-v] ...[input]
+    apache-log [flags] ...[input]
 
 `
 
