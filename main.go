@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"github.com/alexsasharegan/apache-log/timing"
 	"log"
 	"os"
 	"sort"
@@ -16,25 +17,40 @@ import (
 var usage = `
 Apache Log Utils
 
-Usage:  apache-log ...[input]
+    apache-log [-v] ...[input]
 
 `
 
+// Performance tracks timing for application tasks.
+type Performance struct {
+	Execution timing.Timing
+	Parsing   timing.Timing
+	Sorting   timing.Timing
+}
+
+var verbose = flag.Bool("v", false, "verbose log output")
+
 func main() {
+	var perf Performance
+	perf.Execution.Start()
 	stderr := log.New(os.Stderr, "", 0)
+
 	flag.Parse()
 	args := flag.Args()
 	// No input files received
 	if len(args) == 0 {
 		stderr.Print(usage)
+		flag.Usage()
 		os.Exit(1)
 	}
 
 	logx := make(chan []AccessLog)
 	notFound := make(map[string]int)
-	var wg sync.WaitGroup
 
+	var wg sync.WaitGroup
 	wg.Add(len(args))
+
+	perf.Parsing.Start()
 	for _, filename := range args {
 		go func(name string) {
 			defer wg.Done()
@@ -49,9 +65,11 @@ func main() {
 
 	go func() {
 		wg.Wait()
+		perf.Parsing.Stop()
 		close(logx)
 	}()
 
+	perf.Sorting.Start()
 	for entries := range logx {
 		for _, aLog := range entries {
 			if aLog.StatusCode == 404 {
@@ -59,6 +77,7 @@ func main() {
 			}
 		}
 	}
+	perf.Sorting.Stop()
 
 	var buf bytes.Buffer
 	for _, pair := range rankByCount(notFound, 10) {
@@ -66,6 +85,13 @@ func main() {
 	}
 
 	buf.WriteTo(os.Stdout)
+
+	perf.Execution.Stop()
+	if *verbose {
+		stderr.Println("Parsing:", perf.Parsing.ElapsedString())
+		stderr.Println("Sorting:", perf.Sorting.ElapsedString())
+		stderr.Println("Total  :", perf.Execution.ElapsedString())
+	}
 }
 
 func parseFile(name string) ([]AccessLog, error) {
